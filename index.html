@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>One Piece Grand Voyage - Episode Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Seaweed+Script&display=swap" rel="stylesheet">
+    <style>
+        /* CSS remains the same as user liked it */
+        .font-seaweed { font-family: 'Seaweed Script', cursive; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1a202c; }
+        ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #718096; }
+        .flip-card { background-color: transparent; perspective: 1000px; }
+        .flip-card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2); }
+        .flip-card:hover .flip-card-inner { transform: rotateY(180deg); }
+        .flip-card-front, .flip-card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; border-radius: 0.5rem; overflow: hidden; }
+        .flip-card-front { background-color: #2d3748; color: white; }
+        .flip-card-back { background-color: #4a5568; color: white; transform: rotateY(180deg); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 1rem; }
+        .flip-card-back p { font-size: 0.75rem; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+
+    <header class="bg-gray-800 shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+            <h1 class="text-4xl font-seaweed text-yellow-400">One Piece Grand Voyage</h1>
+            <div class="w-full sm:w-auto sm:max-w-xs">
+                <input type="text" id="searchInput" placeholder="Search loaded episodes..." class="bg-gray-700 text-white w-full px-4 py-2 rounded-full focus:outline-none focus:ring-2 focus:ring-yellow-400 transition">
+            </div>
+            <div id="quoteDisplay" class="w-full text-center mt-4 p-3 bg-gray-700 rounded-lg shadow-inner">
+                <p id="quoteText" class="italic text-gray-300">"The future is built on dreams."</p>
+                <p id="quoteAuthor" class="text-sm text-yellow-400">- Monkey D. Luffy</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-8">
+        <p class="mb-6 text-gray-400 text-center">A fan-made guide to the epic journey of Monkey D. Luffy. Data is fetched live from the Kitsu.io API. Please support the official release!</p>
+        
+        <div id="episodeGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+            </div>
+        
+        <div id="controls" class="text-center mt-8">
+            <div id="loader" class="hidden">
+                <p>Loading the next batch of episodes...</p>
+            </div>
+            <button id="loadMoreBtn" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-bold py-2 px-6 rounded-full transition duration-300">
+                Load More
+            </button>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 mt-12 py-6">
+        <div class="container mx-auto px-6 text-center text-gray-400">
+            <p>&copy; 2025 Grand Voyage Guide. All rights reserved.</p>
+            <p>This site uses the <a href="https://kitsu.io/api/edge" target="_blank" class="underline hover:text-yellow-400">Kitsu.io API</a>. Not affiliated with One Piece creators.</p>
+        </div>
+    </footer>
+
+    <script>
+        // --- CONFIG & STATE ---
+        const INITIAL_API_URL = 'https://kitsu.io/api/edge/anime/12/episodes?page[limit]=20'; // Anime ID 12 is One Piece
+        const QUOTE_API_URL = 'https://api.animechan.io/v1/quotes/random'; // New Quote API
+        // CORRECTED KAI BASE WATCH URL based on your provided working link
+        const KAI_BASE_WATCH_URL = 'https://animekai.to/watch/one-piece-dk6r#ep=';
+        const GENERIC_EPISODE_IMAGE = 'https://placehold.co/300x170/003366/FFFFFF?text=One+Piece';
+        
+        let allEpisodes = [];
+        let nextEpisodesLink = INITIAL_API_URL;
+        let isLoading = false;
+
+        const episodeGrid = document.getElementById('episodeGrid');
+        const searchInput = document.getElementById('searchInput');
+        const loadMoreBtn = document.getElementById('loadMoreBtn');
+        const loader = document.getElementById('loader');
+        const quoteText = document.getElementById('quoteText');
+        const quoteAuthor = document.getElementById('quoteAuthor');
+
+        // --- API & DISPLAY LOGIC ---
+
+        /**
+         * Fetches a page of episodes from the Kitsu API.
+         */
+        const fetchEpisodes = async () => {
+            if (!nextEpisodesLink || isLoading) return;
+
+            isLoading = true;
+            loader.classList.remove('hidden');
+            loadMoreBtn.classList.add('hidden');
+
+            try {
+                const response = await fetch(nextEpisodesLink);
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.statusText}`);
+                }
+                const data = await response.json();
+                
+                // Map the Kitsu data structure to our 'allEpisodes' array
+                const newEpisodes = data.data.map(ep => {
+                    const attr = ep.attributes;
+                    return {
+                        no: attr.number,
+                        // Use English title, fallback to Romaji
+                        title: attr.titles.en_us || attr.titles.en_jp || `Episode ${attr.number}`,
+                        desc: attr.synopsis || 'No description available.',
+                        // Use Kitsu thumbnail if available, otherwise use our fallback
+                        img: attr.thumbnail?.original ?? GENERIC_EPISODE_IMAGE,
+                    };
+                });
+                
+                allEpisodes.push(...newEpisodes);
+                nextEpisodesLink = data.links.next; // Get the URL for the next page of results
+                
+                // Display whatever is in the search bar, or all episodes if empty
+                displayFilteredEpisodes();
+
+            } catch (error) {
+                console.error("Failed to fetch episodes:", error);
+                loader.innerHTML = `<p class="text-red-500">Failed to load episodes. Please try again later.</p>`;
+            } finally {
+                isLoading = false;
+                loader.classList.add('hidden');
+                if (nextEpisodesLink) {
+                    loadMoreBtn.classList.remove('hidden');
+                }
+            }
+        };
+
+        /**
+         * Filters the master list of episodes and displays the result.
+         */
+        const displayFilteredEpisodes = () => {
+            const searchTerm = searchInput.value.toLowerCase();
+            const episodesToDisplay = searchTerm
+                ? allEpisodes.filter(ep => 
+                    ep.title.toLowerCase().includes(searchTerm) || 
+                    ep.no.toString().includes(searchTerm))
+                : allEpisodes;
+
+            displayEpisodes(episodesToDisplay);
+        }
+
+        /**
+         * Renders an array of episode objects to the DOM.
+         * @param {Array} episodesToDisplay - The array of episode objects to display.
+         */
+        const displayEpisodes = (episodesToDisplay) => {
+            episodeGrid.innerHTML = ''; // Clear the grid before redrawing
+            if (episodesToDisplay.length === 0) {
+                const message = searchInput.value
+                    ? 'No loaded episodes match your search.'
+                    : 'No episodes found.';
+                episodeGrid.innerHTML = `<p class="text-gray-400 col-span-full text-center">${message}</p>`;
+                return;
+            }
+
+            episodesToDisplay.forEach(ep => {
+                const card = document.createElement('div');
+                card.className = 'flip-card rounded-lg overflow-hidden h-48';
+
+                // Construct the dynamic KAI URL here using the CORRECTED BASE URL
+                const dynamicKaiLink = `${KAI_BASE_WATCH_URL}${ep.no}`;
+                
+                card.innerHTML = `
+                    <div class="flip-card-inner rounded-lg">
+                        <div class="flip-card-front">
+                            <img src="${ep.img}" alt="${ep.title}" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='${GENERIC_EPISODE_IMAGE}';">
+                            <div class="absolute bottom-0 left-0 bg-black bg-opacity-60 w-full p-2">
+                                <h3 class="font-bold text-sm truncate" title="${ep.title}">E${ep.no}: ${ep.title}</h3>
+                            </div>
+                        </div>
+                        <div class="flip-card-back">
+                            <h3 class="font-bold mb-1 text-sm">${ep.title}</h3>
+                            <p class="flex-grow overflow-y-auto p-1">${ep.desc}</p>
+                            <a href="${dynamicKaiLink}" target="_blank" class="bg-yellow-500 mt-2 hover:bg-yellow-600 text-gray-900 font-bold py-2 px-4 rounded-full transition duration-300">
+                                Watch on KAI
+                            </a>
+                        </div>
+                    </div>
+                `;
+                episodeGrid.appendChild(card);
+            });
+        };
+
+        /**
+         * Fetches and displays a random anime quote.
+         */
+        const fetchRandomQuote = async () => {
+            try {
+                const response = await fetch(QUOTE_API_URL);
+                if (!response.ok) {
+                    throw new Error(`Quote API error: ${response.statusText}`);
+                }
+                const quote = await response.json();
+                
+                quoteText.textContent = `"${quote.quote || 'A journey of a thousand miles begins with a single step.'}"`;
+                quoteAuthor.textContent = `- ${quote.character || 'Unknown'}`;
+
+            } catch (error) {
+                console.error("Failed to fetch random quote:", error);
+                // Fallback to a default quote if API fails
+                quoteText.textContent = `"Believe in yourself, and you can achieve anything."`;
+                quoteAuthor.textContent = `- The Grand Voyage Guide`;
+            }
+        };
+
+        // --- INITIALIZATION & EVENT LISTENERS ---
+        searchInput.addEventListener('input', displayFilteredEpisodes);
+        loadMoreBtn.addEventListener('click', fetchEpisodes);
+
+        // Initial fetch on page load
+        fetchEpisodes();
+        fetchRandomQuote();
+        // You could also set an interval to refresh the quote every X seconds
+        // setInterval(fetchRandomQuote, 30000); // e.g., refresh every 30 seconds
+    </script>
+</body>
+</html>
